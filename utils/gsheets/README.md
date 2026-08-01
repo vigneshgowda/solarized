@@ -52,17 +52,38 @@ account to act as a specific user, also set
 ### Option B — OAuth refresh token (acts as you)
 
 Use this when you want access to every sheet your own account can already see,
-without sharing anything. Obtain a refresh token once on a machine with a
-browser (via the OAuth playground or your own client), then:
+without sharing anything.
 
-```sh
-export GOOGLE_OAUTH_CLIENT_ID=...
-export GOOGLE_OAUTH_CLIENT_SECRET=...
-export GOOGLE_OAUTH_REFRESH_TOKEN=...
-```
+1. Cloud Console → APIs & Services → Credentials → **Create credentials →
+   OAuth client ID** → application type **Desktop app**. Note the client ID and
+   secret.
+2. On a machine with a browser (your laptop — not a container), run the bundled
+   helper. It needs only the standard library, so there is nothing to install:
 
-Refresh tokens for apps in "Testing" publishing status expire after 7 days;
-publish the OAuth consent screen to `In production` for a long-lived token.
+   ```sh
+   python3 get_token.py --client-id XXX --client-secret YYY
+   ```
+
+   It opens Google's consent screen, captures the redirect on a local port,
+   exchanges the code, and prints the three `export` lines to use. Add
+   `--read-only` to request read-only access.
+3. Set the printed variables where `gsheets.py` runs:
+
+   ```sh
+   export GOOGLE_OAUTH_CLIENT_ID=...
+   export GOOGLE_OAUTH_CLIENT_SECRET=...
+   export GOOGLE_OAUTH_REFRESH_TOKEN=...
+   ```
+
+Two things that commonly bite here:
+
+- Refresh tokens for apps left in **Testing** publishing status expire after 7
+  days. Publish the OAuth consent screen to *In production* for a long-lived
+  token.
+- If Google returns no refresh token, the account has already authorized this
+  client. Revoke it at <https://myaccount.google.com/permissions> and re-run.
+
+The refresh token grants access to your sheets — treat it like a password.
 
 ## Usage
 
