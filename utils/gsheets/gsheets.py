@@ -68,28 +68,36 @@ def _service_account_info() -> dict[str, Any] | None:
     return None
 
 
-def _oauth_credentials(scopes: list[str]) -> UserCredentials | None:
+def _oauth_credentials() -> UserCredentials | None:
     client_id = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
     client_secret = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "").strip()
     refresh_token = os.environ.get("GOOGLE_OAUTH_REFRESH_TOKEN", "").strip()
     if not (client_id and client_secret and refresh_token):
         return None
 
+    # No `scopes` here on purpose: a refresh token already carries whatever
+    # scope it was granted at authorization time (see get_token.py). Asking
+    # the token endpoint to refresh into a *different* scope -- e.g. the
+    # read-only variant when the token was only ever granted the read/write
+    # one -- is rejected with invalid_scope, since that scope was never
+    # actually granted. Omitting it just returns a token for the scope(s)
+    # already on the refresh token.
     return UserCredentials(
         token=None,
         refresh_token=refresh_token,
         client_id=client_id,
         client_secret=client_secret,
         token_uri="https://oauth2.googleapis.com/token",
-        scopes=scopes,
     )
 
 
 def build_credentials(read_only: bool = False):
-    scopes = [RO_SCOPE if read_only else RW_SCOPE]
-
     info = _service_account_info()
     if info is not None:
+        # Service account tokens are minted fresh on every refresh (there is
+        # no pre-existing user grant to match), so it's safe to request
+        # narrower scope here as defense in depth.
+        scopes = [RO_SCOPE if read_only else RW_SCOPE]
         creds = service_account.Credentials.from_service_account_info(info, scopes=scopes)
         # Domain-wide delegation: act as a real user instead of the robot account.
         subject = os.environ.get("GOOGLE_IMPERSONATE_SUBJECT", "").strip()
@@ -97,7 +105,7 @@ def build_credentials(read_only: bool = False):
             creds = creds.with_subject(subject)
         return creds
 
-    oauth = _oauth_credentials(scopes)
+    oauth = _oauth_credentials()
     if oauth is not None:
         return oauth
 
